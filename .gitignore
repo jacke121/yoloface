@@ -43,5 +43,6 @@ model-weights/*.weights
 # Output files
 outputs/*.mp4
 outputs/*.avi
+model-weights/*.h5
 
 
