@@ -16,6 +16,7 @@ import colorsys
 import numpy as np
 import cv2
 
+from query_pic import search_pic
 from yolo.model import eval
 from yolo.utils import letterbox_image
 
@@ -23,7 +24,7 @@ from keras import backend as K
 from keras.models import load_model
 from timeit import default_timer as timer
 from PIL import ImageDraw, Image
-
+import global_var_model as gl_var
 
 class YOLO(object):
     def __init__(self, args):
@@ -112,7 +113,7 @@ class YOLO(object):
             boxed_image = letterbox_image(image, new_image_size)
         image_data = np.array(boxed_image, dtype='float32')
 
-        print(image_data.shape)
+        # print(image_data.shape)
         image_data /= 255.
         # Add batch dimension
         image_data = np.expand_dims(image_data, 0)
@@ -125,7 +126,7 @@ class YOLO(object):
                 K.learning_phase(): 0
             })
 
-        print('[i] ==> Found {} face(s) for this image'.format(len(out_boxes)))
+        # print('[i] ==> Found {} face(s) for this image'.format(len(out_boxes)))
         thickness = (image.size[0] + image.size[1]) // 400
 
         for i, c in reversed(list(enumerate(out_classes))):
@@ -142,7 +143,7 @@ class YOLO(object):
             bottom = min(image.size[1], np.floor(bottom + 0.5).astype('int32'))
             right = min(image.size[0], np.floor(right + 0.5).astype('int32'))
 
-            print(text, (left, top), (right, bottom))
+            # print(text, (left, top), (right, bottom))
 
             for thk in range(thickness):
                 draw.rectangle(
@@ -153,6 +154,7 @@ class YOLO(object):
         end_time = timer()
         print('[i] ==> Processing time: {:.2f}ms'.format((end_time -
                                                           start_time) * 1000))
+
         return image, out_boxes
 
     def close_session(self):
@@ -173,10 +175,19 @@ def detect_img(yolo):
 
     yolo.close_session()
 
+def savemat(image, x, y, w, h):  # 保存矩阵
+
+    minY = max(y - 10, 0)
+    maxY = min(y + h + 10, image.shape[0])
+    minX = max(x - 20, 0)
+    maxX = min(x + w + 20, image.shape[1])
+    cropImg = image[int(minY): int(maxY), int(minX): int(maxX)]
+    return cropImg
 
 def detect_video(model, video_path=None, output=None):
     if video_path == 'stream':
-        vid = cv2.VideoCapture(0)
+        # vid = cv2.VideoCapture(0)
+        vid = cv2.VideoCapture("rtsp://admin:sbdwl123@192.168.25.45:554/h264/ch1/main/av_stream")
     else:
         vid = cv2.VideoCapture(video_path)
 
@@ -200,6 +211,7 @@ def detect_video(model, video_path=None, output=None):
     curr_fps = 0
     fps = "FPS: ??"
     prev_time = timer()
+    i=0
     ###################################
     while True:
         ret, frame = vid.read()
@@ -207,7 +219,6 @@ def detect_video(model, video_path=None, output=None):
             image = Image.fromarray(frame)
             image, faces = model.detect_image(image)
             result = np.asarray(image)
-
             curr_time = timer()
             exec_time = curr_time - prev_time
             prev_time = curr_time
@@ -217,15 +228,21 @@ def detect_video(model, video_path=None, output=None):
                 accum_time = accum_time - 1
                 fps = curr_fps
                 curr_fps = 0
-
             # Initialize the set of information we'll displaying on the frame
             info = [
                 ('FPS', '{}'.format(fps)),
                 ('Faces detected', '{}'.format(len(faces)))
             ]
-
+            if len(faces)>0:
+                faces=faces[0]
+                cropImg = savemat(frame, faces[0], faces[1], faces[2], faces[3])
+                if (cropImg.shape[0] > 0 and cropImg.shape[1] > 0):
+                    cv2.imwrite('./sht_face/' + str(i) + '.jpg', cropImg)
+                    res = search_pic(gl_var.camera_server_ip, dbName="sbd_db02", path='./sht_face/' + str(i) + '.jpg')
+                    if res:
+                        print(res)
+                    i += 1
             cv2.rectangle(result, (5, 5), (120, 50), (0, 0, 0), cv2.FILLED)
-
             for (i, (txt, val)) in enumerate(info):
                 text = '{}: {}'.format(txt, val)
                 cv2.putText(result, text, (10, (i * 20) + 20),
@@ -233,8 +250,8 @@ def detect_video(model, video_path=None, output=None):
 
             cv2.namedWindow("face", cv2.WINDOW_NORMAL)
             cv2.imshow("face", result)
-            if isOutput:
-                out.write(result)
+            # if isOutput:
+            #     out.write(result)
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
         else:

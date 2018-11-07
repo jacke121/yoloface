@@ -1,4 +1,5 @@
 import argparse
+import os
 
 from PIL import Image
 from YOLO import YOLO, detect_video, detect_img
@@ -13,7 +14,7 @@ def get_args():
                         help='path to anchor definitions')
     parser.add_argument('--classes', type=str, default='cfg/face_classes.txt',
                         help='path to class definitions')
-    parser.add_argument('--score', type=float, default=0.95,
+    parser.add_argument('--score', type=float, default=0.9985,
                         help='the score threshold')
     parser.add_argument('--iou', type=float, default=0.45,
                         help='the iou threshold')
@@ -32,7 +33,7 @@ def get_args():
 def _main():
     # Get the arguments
     args = get_args()
-
+    os.makedirs('sht_face', exist_ok=True)
     if args.image:
         # Image detection mode
         print('[i] ==> Image detection mode\n')
